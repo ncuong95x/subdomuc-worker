@@ -162,6 +162,34 @@ def main():
 
     tts = Vieneu(mode="v3turbo", backend="onnx", device="cpu")
 
+    # Check and inject custom voice if needed
+    if voice_to_use not in tts._preset_voices:
+        npz_candidates = list(input_dir.glob("*.npz")) + list(work_dir.rglob("*.npz"))
+        if npz_candidates:
+            try:
+                npz_data = np.load(str(npz_candidates[0]))
+                tts._preset_voices[voice_to_use] = {
+                    "description": "Nam · Bắc · Phong cách tự nhiên",
+                    "gender": "male",
+                    "style": "tu_nhien",
+                    "featured": 5,
+                    "aliases": ["Minh Quân Pro", "Minh Quân"],
+                    "speaker_emb": npz_data["speaker_emb"],
+                    "codes": npz_data["codes"]
+                }
+                print(f"[TTS] ✅ Đã nạp thành công giọng '{voice_to_use}' từ file {npz_candidates[0].name}!")
+            except Exception as e:
+                print(f"[TTS] Không thể nạp npz: {e}")
+
+        if voice_to_use not in tts._preset_voices:
+            if "Minh Quân" in tts._preset_voices:
+                print(f"[TTS] 🔄 Tự động chuyển giọng '{voice_to_use}' sang preset chuẩn 'Minh Quân'...")
+                voice_to_use = "Minh Quân"
+            else:
+                avail = list(tts._preset_voices.keys())
+                voice_to_use = "Minh Quân" if "Minh Quân" in avail else avail[0]
+                print(f"[TTS] Sử dụng preset có sẵn: '{voice_to_use}'")
+
     missing = []
     for s in segments:
         clip = audio_clips_dir / f"clip_{s['id']:04d}.wav"
