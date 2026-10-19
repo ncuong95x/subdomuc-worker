@@ -1,0 +1,120 @@
+name: "[Máy Ảo 2] Render Phân Tích Game"
+
+on:
+  workflow_dispatch:
+    inputs:
+      job_id:
+        description: 'Unique Job ID'
+        required: true
+        type: string
+      release_tag:
+        description: 'Temporary Release Tag'
+        required: false
+        default: ''
+        type: string
+      video_url:
+        description: 'Direct download URL for video'
+        required: false
+        default: ''
+        type: string
+      speed_voice:
+        description: 'Voice speed factor'
+        required: false
+        default: '1.3'
+        type: string
+      slowdown:
+        description: 'Compound final slowdown factor'
+        required: false
+        default: '0.8'
+        type: string
+      orig_vol:
+        description: 'Original Game audio volume'
+        required: false
+        default: '0.05'
+        type: string
+      blur_box:
+        description: 'Optional blur coordinates x,y,w,h (or leave empty)'
+        required: false
+        default: ''
+        type: string
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  render_game:
+    name: "Máy Ảo 2 - Game YT (${{ inputs.job_id }})"
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+
+    steps:
+      - name: Che thông tin nhạy cảm
+        run: |
+          if [ -n "${{ inputs.video_url }}" ]; then echo "::add-mask::${{ inputs.video_url }}"; fi
+          if [ -n "${{ inputs.release_tag }}" ]; then echo "::add-mask::${{ inputs.release_tag }}"; fi
+          if [ -n "${{ inputs.job_id }}" ]; then echo "::add-mask::${{ inputs.job_id }}"; fi
+
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Cấu hình Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Cache HuggingFace Models
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: huggingface-vieneu-${{ runner.os }}-v3turbo
+
+      - name: Cài đặt môi trường hệ thống
+        run: |
+          echo "::group::Cài đặt FFmpeg & Thư viện Python"
+          sudo apt-get update -qq > /dev/null 2>&1
+          sudo apt-get install -y -qq ffmpeg fonts-liberation fonts-noto-cjk fonts-dejavu-core aria2 > /dev/null 2>&1
+          python -m pip install --upgrade pip -q
+          pip install -r requirements.txt -q
+          echo "::endgroup::"
+          echo "✅ Môi trường đã sẵn sàng."
+
+      - name: Tải gói dữ liệu & Xóa Release bảo mật
+        if: ${{ inputs.release_tag != '' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p workspace/input workspace/output
+          gh release download "${{ inputs.release_tag }}" -D workspace/input --pattern "*.zip" > /dev/null 2>&1
+          for z in workspace/input/*.zip; do
+            if [ -f "$z" ]; then
+              unzip -q -o "$z" -d workspace/input/
+            fi
+          done
+          # Tự động xóa ngay release tạm trên repo public để bảo vệ dữ liệu gốc
+          gh release delete "${{ inputs.release_tag }}" -y --cleanup-tag > /dev/null 2>&1 || true
+          echo "✅ Đã nạp dữ liệu vào máy ảo."
+
+      - name: Xử lý Lồng tiếng & Render (Máy ảo 2 - Phân tích Game)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python worker_game.py \
+            --job-id "${{ inputs.job_id }}" \
+            --video-url "${{ inputs.video_url }}" \
+            --speed-voice "${{ inputs.speed_voice }}" \
+            --slowdown "${{ inputs.slowdown }}" \
+            --orig-vol "${{ inputs.orig_vol }}" \
+            --blur-box "${{ inputs.blur_box }}"
+
+      - name: Lưu trữ Video thành phẩm
+        uses: actions/upload-artifact@v4
+        with:
+          name: game-render-result-${{ inputs.job_id }}
+          path: |
+            workspace/output/*.mp4
+            workspace/output/*.srt
+            workspace/output/job_summary.json
+          retention-days: 1
+          if-no-files-found: error

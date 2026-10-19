@@ -1,4 +1,4 @@
-name: DramaDub Facebook Cloud Render
+name: "[Máy Ảo 1] Render Demo Facebook"
 
 on:
   workflow_dispatch:
@@ -8,32 +8,32 @@ on:
         required: true
         type: string
       release_tag:
-        description: 'GitHub Release Tag containing job_bundle.zip (optional)'
+        description: 'Temporary Release Tag'
         required: false
         default: ''
         type: string
       video_url:
-        description: 'Direct download URL for video (Douyin, Bilibili, YouTube, etc.)'
+        description: 'Direct download URL for video'
         required: false
         default: ''
         type: string
       speed_voice:
-        description: 'Voice speed factor (default 1.3)'
+        description: 'Voice speed factor'
         required: false
         default: '1.3'
         type: string
       slowdown:
-        description: 'Compound final slowdown factor (default 0.8)'
+        description: 'Compound final slowdown factor'
         required: false
         default: '0.8'
         type: string
       orig_vol:
-        description: 'Original Chinese audio volume (0.0 to 1.0, default 0.05)'
+        description: 'Original Chinese audio volume'
         required: false
         default: '0.05'
         type: string
       blur_box:
-        description: 'Watermark blur coordinates x,y,w,h (default 410,15,305,55)'
+        description: 'Watermark blur coordinates x,y,w,h'
         required: false
         default: '410,15,305,55'
         type: string
@@ -43,26 +43,26 @@ permissions:
   actions: write
 
 jobs:
-  render:
-    name: FB Dubbing & Render (${{ inputs.job_id }})
+  render_demo:
+    name: "Máy Ảo 1 - Demo FB (${{ inputs.job_id }})"
     runs-on: ubuntu-latest
     timeout-minutes: 300
 
     steps:
+      - name: Che thông tin nhạy cảm
+        run: |
+          if [ -n "${{ inputs.video_url }}" ]; then echo "::add-mask::${{ inputs.video_url }}"; fi
+          if [ -n "${{ inputs.release_tag }}" ]; then echo "::add-mask::${{ inputs.release_tag }}"; fi
+          if [ -n "${{ inputs.job_id }}" ]; then echo "::add-mask::${{ inputs.job_id }}"; fi
+
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Set up Python 3.12
+      - name: Cấu hình Python 3.12
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
           cache: 'pip'
-
-      - name: Install System Dependencies (FFmpeg & Fonts)
-        run: |
-          sudo apt-get update -y
-          sudo apt-get install -y ffmpeg fonts-liberation fonts-noto-cjk fonts-dejavu-core aria2
-          ffmpeg -version
 
       - name: Cache HuggingFace Models
         uses: actions/cache@v4
@@ -70,29 +70,33 @@ jobs:
           path: ~/.cache/huggingface
           key: huggingface-vieneu-${{ runner.os }}-v3turbo
 
-      - name: Install Python Requirements
+      - name: Cài đặt môi trường hệ thống
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          echo "::group::Cài đặt FFmpeg & Thư viện Python"
+          sudo apt-get update -qq > /dev/null 2>&1
+          sudo apt-get install -y -qq ffmpeg fonts-liberation fonts-noto-cjk fonts-dejavu-core aria2 > /dev/null 2>&1
+          python -m pip install --upgrade pip -q
+          pip install -r requirements.txt -q
+          echo "::endgroup::"
+          echo "✅ Môi trường đã sẵn sàng."
 
-      - name: Download Job Bundle (if release_tag provided)
+      - name: Tải gói dữ liệu & Xóa Release bảo mật
         if: ${{ inputs.release_tag != '' }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           mkdir -p workspace/input workspace/output
-          echo "Downloading bundle from release tag: ${{ inputs.release_tag }}"
-          gh release download "${{ inputs.release_tag }}" -D workspace/input --pattern "*.zip"
+          gh release download "${{ inputs.release_tag }}" -D workspace/input --pattern "*.zip" > /dev/null 2>&1
           for z in workspace/input/*.zip; do
             if [ -f "$z" ]; then
-              echo "Unzipping $z..."
               unzip -q -o "$z" -d workspace/input/
             fi
           done
-          echo "Files in workspace/input:"
-          ls -la workspace/input/
+          # Tự động xóa ngay release tạm trên repo public để bảo vệ dữ liệu gốc
+          gh release delete "${{ inputs.release_tag }}" -y --cleanup-tag > /dev/null 2>&1 || true
+          echo "✅ Đã nạp dữ liệu vào máy ảo."
 
-      - name: Run FB Worker (TTS VieNeu + FFmpeg Compound Render)
+      - name: Xử lý Lồng tiếng & Render (Máy ảo 1 - Demo FB)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -104,7 +108,7 @@ jobs:
             --orig-vol "${{ inputs.orig_vol }}" \
             --blur-box "${{ inputs.blur_box }}"
 
-      - name: Upload Finished Facebook Video Artifact
+      - name: Lưu trữ Video thành phẩm
         uses: actions/upload-artifact@v4
         with:
           name: fb-render-result-${{ inputs.job_id }}
@@ -112,5 +116,5 @@ jobs:
             workspace/output/*.mp4
             workspace/output/*.srt
             workspace/output/job_summary.json
-          retention-days: 3
+          retention-days: 1
           if-no-files-found: error

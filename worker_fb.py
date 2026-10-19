@@ -1,16 +1,13 @@
 #!/usr/bin/env python3
 """
-DramaDub Facebook Cloud Worker
+DramaDub Facebook Cloud Worker (Máy ảo 1 - Demo / Facebook)
 Runs on GitHub Actions runner (Ubuntu) to perform:
 1. Video download (if URL provided)
 2. VieNeu TTS synthesis (Ngọc Huyền v3turbo)
 3. 1.3x speed voice alignment & master audio mixing
-4. Single-pass FFmpeg compound render:
-   - Watermark logo blur
-   - Audio mix (5% original Chinese + 100% Vietnamese dub)
-   - Compound slowdown 0.8x
-   - Faststart MP4 for Facebook
+4. Single-pass FFmpeg compound render (9:16 + Watermark blur + Faststart)
 5. Synchronized SRT subtitle generation
+Stealth Mode: Che bớt tiến trình, không in kịch bản/nội dung thoại ra màn hình console.
 """
 
 import sys
@@ -42,20 +39,21 @@ def get_video_duration(video_path: Path) -> float:
 
 
 def download_video_yt_dlp(url: str, output_path: Path):
-    print(f"\n[Download] Bắt đầu tải video từ URL: {url}")
+    print("[Download] Đang tải video từ nguồn trực tuyến...")
     cmd = [
         "yt-dlp",
+        "--no-warnings",
         "-f", "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
         "--merge-output-format", "mp4",
         "-o", str(output_path),
         url
     ]
-    subprocess.run(cmd, check=True)
-    print(f"[Download] Tải video thành công: {output_path.name} ({output_path.stat().st_size / 1024 / 1024:.1f} MB)")
+    subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL)
+    print(f"[Download] Tải video thành công ({output_path.stat().st_size / 1024 / 1024:.1f} MB).")
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Facebook Cloud Worker")
+    parser = argparse.ArgumentParser(description="Facebook Cloud Worker (Demo)")
     parser.add_argument("--job-id", type=str, required=True, help="Unique job ID")
     parser.add_argument("--video-url", type=str, default="", help="Video download URL")
     parser.add_argument("--speed-voice", type=float, default=1.3, help="Voice speed factor (default 1.3)")
@@ -65,10 +63,10 @@ def main():
     args = parser.parse_args()
 
     t_start = time.time()
-    print("=" * 70)
-    print(f"🚀 DRAMADUB FB CLOUD WORKER - JOB: {args.job_id}")
-    print(f"👉 Thông số: Thoại {args.speed_voice}x | Giảm chậm {args.slowdown}x | Âm gốc {args.orig_vol*100}% | Blur {args.blur_box}")
-    print("=" * 70)
+    print("=" * 65)
+    print("🚀 [MÁY ẢO 1] CLOUD RENDER - DỰ ÁN DEMO (FACEBOOK)")
+    print(f"👉 Thông số: Thoại {args.speed_voice}x | Chậm {args.slowdown}x | Âm gốc {int(args.orig_vol*100)}%")
+    print("=" * 65)
 
     work_dir = Path("workspace").resolve()
     input_dir = work_dir / "input"
@@ -84,39 +82,35 @@ def main():
     mp4_candidates = list(input_dir.glob("*.mp4"))
     if mp4_candidates:
         video_path = mp4_candidates[0]
-        print(f"[Video] Tìm thấy video từ bundle: {video_path.name}")
+        print("[Video] Đã nhận video từ gói dữ liệu.")
     elif args.video_url:
         video_path = input_dir / "source_video.mp4"
         download_video_yt_dlp(args.video_url, video_path)
     else:
-        # Check any video file in workspace
         any_vids = list(work_dir.rglob("*.mp4"))
         if any_vids:
             video_path = any_vids[0]
-            print(f"[Video] Tìm thấy video trong workspace: {video_path.name}")
+            print("[Video] Đã tìm thấy video nguồn.")
         else:
             raise FileNotFoundError("Không tìm thấy file video và không có URL được cung cấp!")
 
     total_video_dur = get_video_duration(video_path)
-    print(f"[Video] Thời lượng gốc: {total_video_dur:.2f}s ({total_video_dur/60:.2f} phút)")
+    print(f"[Video] Thời lượng: {total_video_dur:.1f}s ({total_video_dur/60:.2f} phút).")
 
     # 2. Locate segments_vi.json
     seg_candidates = list(input_dir.glob("*segments*.json")) + list(work_dir.rglob("*segments_vi.json"))
     if not seg_candidates:
-        raise FileNotFoundError("Không tìm thấy file segments_vi.json trong input bundle!")
+        raise FileNotFoundError("Không tìm thấy dữ liệu thoại!")
     segments_path = seg_candidates[0]
     segments = json.loads(segments_path.read_text(encoding="utf-8"))
-    print(f"[Segments] Đã nạp {len(segments)} câu thoại tiếng Việt.")
+    print(f"[Segments] Tổng số câu thoại: {len(segments)} câu.")
 
     # 3. VieNeu TTS Synthesis (Ngọc Huyền)
     audio_clips_dir = temp_dir / "audio_clips"
     audio_clips_dir.mkdir(parents=True, exist_ok=True)
     sample_rate = 48000
 
-    print("\n" + "-" * 50)
-    print("🔊 BƯỚC 1: LỒNG TIẾNG AI - GIỌNG ĐỌC 'Ngọc Huyền' (VIENEU v3turbo)...")
-    print("-" * 50)
-
+    print("\n[TTS] Bắt đầu tổng hợp giọng đọc AI 'Ngọc Huyền'...")
     t_tts_start = time.time()
     tts = Vieneu(mode="v3turbo", backend="onnx", device="cpu")
 
@@ -129,7 +123,6 @@ def main():
             s["audio_duration"] = sf.info(str(clip)).duration
 
     if missing:
-        print(f"[TTS] Đang tạo {len(missing)} / {len(segments)} đoạn thoại...")
         batch_size = 16
         for b_start in range(0, len(missing), batch_size):
             batch = missing[b_start : b_start + batch_size]
@@ -149,21 +142,18 @@ def main():
                 sf.write(str(clip), arr, sample_rate, subtype="PCM_16")
                 s["audio_duration"] = len(arr) / sample_rate
 
-            if (b_start // batch_size) % 5 == 0 or (b_start + batch_size) >= len(missing):
-                print(f"[TTS] Đã xong {min(b_start + batch_size, len(missing))} / {len(missing)} câu...")
+            cur_done = min(b_start + batch_size, len(missing))
+            pct = int((cur_done / len(missing)) * 100)
+            print(f"[TTS] Tiến độ: {cur_done}/{len(missing)} câu ({pct}%)...", flush=True)
 
-    print(f"[TTS] ✅ Hoàn tất lồng tiếng trong {time.time() - t_tts_start:.1f}s!")
+    print(f"[TTS] ✅ Hoàn tất giọng đọc trong {time.time() - t_tts_start:.1f}s.")
 
     # 4. Schedule timeline & atempo stretch
-    print("\n" + "-" * 50)
-    print(f"⏱️ BƯỚC 2: RÁP DÒNG ÂM THANH (THOẠI {args.speed_voice}x, KHÓA CHẶT TIMECODE GỐC)...")
-    print("-" * 50)
-
     sped_dir = temp_dir / "sped_clips"
     sped_dir.mkdir(parents=True, exist_ok=True)
 
     placements = []
-    for i, s in enumerate(segments):
+    for s in segments:
         start_time = float(s["start"])
         orig_dur = float(s.get("audio_duration", 1.0))
         tempo = args.speed_voice
@@ -185,7 +175,7 @@ def main():
         tempo = item["tempo"]
         out_file = sped_dir / f"sped_{item['id']:04d}.wav"
         cmd = [
-            "ffmpeg", "-hide_banner", "-y",
+            "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
             "-i", str(in_file),
             "-filter:a", f"atempo={tempo:.4f}",
             "-ar", str(sample_rate),
@@ -221,14 +211,12 @@ def main():
 
     peak = float(np.max(np.abs(master_audio))) if len(master_audio) > 0 else 0.0
     if peak > 0.98:
-        print(f"[Audio] Peak {peak:.2f} > 0.98, chuẩn hóa âm lượng...")
         master_audio = master_audio * (0.95 / peak)
 
     master_wav = temp_dir / "master_voice_1_0.wav"
     sf.write(str(master_wav), master_audio, sample_rate, subtype="PCM_16")
-    print(f"[Audio] ✅ Đã tạo master WAV hoàn chỉnh: {master_wav.name}")
 
-    # 5. Export synchronized SRT subtitle (scaled by slowdown)
+    # 5. Export synchronized SRT subtitle
     def fmt_time(sec: float) -> str:
         ms_tot = max(0, round(sec * 1000))
         h, rem = divmod(ms_tot, 3_600_000)
@@ -246,13 +234,9 @@ def main():
         srt_rows.append(item["vi"])
         srt_rows.append("")
     final_srt.write_text("\n".join(srt_rows), encoding="utf-8")
-    print(f"[SRT] ✅ Đã tạo phụ đề đồng bộ: {final_srt.name}")
 
-    # 6. Single-Pass FFmpeg Render
-    print("\n" + "-" * 50)
-    print("🎬 BƯỚC 3: RENDER VIDEO FFMPEG ĐƠN BƯỚC (SINGLE-PASS)...")
-    print(f"👉 Làm mờ logo {args.blur_box} | Thoại net {args.speed_voice*args.slowdown:.2f}x | Video net {args.slowdown}x")
-    print("-" * 50)
+    # 6. Single-Pass FFmpeg Render (Silent & Optimized)
+    print("\n[Render] Đang kết xuất video thành phẩm (FFmpeg single-pass)...")
 
     try:
         bx, by, bw, bh = [int(x.strip()) for x in args.blur_box.split(",")]
@@ -273,7 +257,7 @@ def main():
     final_mp4 = output_dir / "video_dubbed_facebook.mp4"
     t_render_start = time.time()
     cmd_render = [
-        "ffmpeg", "-hide_banner", "-y",
+        "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
         "-ss", "0", "-t", f"{total_video_dur}",
         "-i", str(video_path),
         "-i", str(master_wav),
@@ -291,8 +275,7 @@ def main():
     ]
     subprocess.run(cmd_render, check=True)
     render_time = time.time() - t_render_start
-    print(f"[Render] ✅ Render hoàn thành trong {render_time:.1f}s ({render_time/60:.2f} phút)!")
-    print(f"[Output] Kích thước video: {final_mp4.stat().st_size / 1024 / 1024:.1f} MB")
+    print(f"[Render] ✅ Render hoàn thành trong {render_time:.1f}s ({final_mp4.stat().st_size / 1024 / 1024:.1f} MB).")
 
     # 7. Summary
     summary = {
@@ -300,16 +283,12 @@ def main():
         "video_duration_orig": total_video_dur,
         "video_duration_final": total_video_dur / args.slowdown,
         "segments_count": len(segments),
-        "tts_time_seconds": time.time() - t_tts_start,
-        "render_time_seconds": render_time,
         "total_time_seconds": time.time() - t_start,
         "video_file": final_mp4.name,
         "srt_file": final_srt.name
     }
     (output_dir / "job_summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
-    print("\n" + "=" * 70)
-    print(f"🎉 HOÀN THÀNH TOÀN BỘ JOB TRÊN GITHUB ACTIONS TRONG {(time.time() - t_start)/60:.2f} PHÚT!")
-    print("=" * 70)
+    print(f"🎉 Hoàn thành Máy ảo 1 (Demo) trong {(time.time() - t_start)/60:.2f} phút!")
 
 
 if __name__ == "__main__":
