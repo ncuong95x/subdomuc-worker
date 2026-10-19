@@ -63,6 +63,15 @@ def main():
     parser.add_argument("--voice", type=str, default="Hải Đăng", help="TTS Voice Name (default 'Hải Đăng')")
     args = parser.parse_args()
 
+    work_dir = Path("workspace").resolve()
+    input_dir = work_dir / "input"
+    output_dir = work_dir / "output"
+    temp_dir = work_dir / "temp"
+
+    input_dir.mkdir(parents=True, exist_ok=True)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    temp_dir.mkdir(parents=True, exist_ok=True)
+
     # Check for voice config in input bundle
     voice_to_use = args.voice
     cfg_candidates = list(input_dir.glob("*config*.json")) + list(work_dir.rglob("*config*.json"))
@@ -81,15 +90,6 @@ def main():
     print(f"🚀 [MÁY ẢO 1] CLOUD RENDER - DỰ ÁN DEMO (VOICE: {voice_to_use})")
     print(f"👉 Thông số: Thoại {args.speed_voice}x | Chậm {args.slowdown}x | Âm gốc {int(args.orig_vol*100)}%")
     print("=" * 65)
-
-    work_dir = Path("workspace").resolve()
-    input_dir = work_dir / "input"
-    output_dir = work_dir / "output"
-    temp_dir = work_dir / "temp"
-
-    input_dir.mkdir(parents=True, exist_ok=True)
-    output_dir.mkdir(parents=True, exist_ok=True)
-    temp_dir.mkdir(parents=True, exist_ok=True)
 
     # 1. Locate or download video
     video_path = None
