@@ -82,10 +82,15 @@ jobs:
         run: |
           mkdir -p workspace/input workspace/output
           echo "Downloading bundle from release tag: ${{ inputs.release_tag }}"
-          gh release download "${{ inputs.release_tag }}" -D workspace/input --pattern "*.zip" || true
-          if [ -f workspace/input/bundle.zip ]; then
-            unzip -q workspace/input/bundle.zip -d workspace/input/
-          fi
+          gh release download "${{ inputs.release_tag }}" -D workspace/input --pattern "*.zip"
+          for z in workspace/input/*.zip; do
+            if [ -f "$z" ]; then
+              echo "Unzipping $z..."
+              unzip -q -o "$z" -d workspace/input/
+            fi
+          done
+          echo "Files in workspace/input:"
+          ls -la workspace/input/
 
       - name: Run FB Worker (TTS VieNeu + FFmpeg Compound Render)
         env:
