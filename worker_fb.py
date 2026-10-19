@@ -618,12 +618,12 @@ def main():
         except Exception:
             pass
 
-    # Tự động scale delogo góc trên bên trái nếu dùng mặc định hoặc auto
-    if bw == 0 or bh == 0 or (bx == 410 and by == 15 and bw == 305 and bh == 55):
-        bx = max(10, int(vw * 0.010))
-        by = max(10, int(vh * 0.025))
-        bw = int(vw * 0.250)
-        bh = int(vh * 0.070)
+    # Tự động scale delogo nếu không có thông số hợp lệ
+    if bw <= 0 or bh <= 0:
+        bx = 410
+        by = 15
+        bw = 300
+        bh = 55
 
     print(f"[Render] Áp dụng bộ lọc xóa Logo (delogo): x={bx}, y={by}, w={bw}, h={bh} trên khung hình {vw}x{vh}...")
 
