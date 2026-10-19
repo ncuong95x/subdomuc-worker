@@ -60,11 +60,25 @@ def main():
     parser.add_argument("--slowdown", type=float, default=0.8, help="Final slowdown factor (default 0.8)")
     parser.add_argument("--orig-vol", type=float, default=0.05, help="Original audio volume (default 0.05)")
     parser.add_argument("--blur-box", type=str, default="410,15,305,55", help="Blur box x,y,w,h")
+    parser.add_argument("--voice", type=str, default="Hải Đăng", help="TTS Voice Name (default 'Hải Đăng')")
     args = parser.parse_args()
+
+    # Check for voice config in input bundle
+    voice_to_use = args.voice
+    cfg_candidates = list(input_dir.glob("*config*.json")) + list(work_dir.rglob("*config*.json"))
+    if cfg_candidates:
+        try:
+            cfg_data = json.loads(cfg_candidates[0].read_text(encoding="utf-8"))
+            if "voice" in cfg_data:
+                voice_to_use = cfg_data["voice"]
+            elif "audio" in cfg_data and "voice" in cfg_data["audio"]:
+                voice_to_use = cfg_data["audio"]["voice"]
+        except Exception:
+            pass
 
     t_start = time.time()
     print("=" * 65)
-    print("🚀 [MÁY ẢO 1] CLOUD RENDER - DỰ ÁN DEMO (FACEBOOK)")
+    print(f"🚀 [MÁY ẢO 1] CLOUD RENDER - DỰ ÁN DEMO (VOICE: {voice_to_use})")
     print(f"👉 Thông số: Thoại {args.speed_voice}x | Chậm {args.slowdown}x | Âm gốc {int(args.orig_vol*100)}%")
     print("=" * 65)
 
@@ -110,7 +124,7 @@ def main():
     audio_clips_dir.mkdir(parents=True, exist_ok=True)
     sample_rate = 48000
 
-    print("\n[TTS] Bắt đầu tổng hợp giọng đọc AI 'Ngọc Huyền'...")
+    print(f"\n[TTS] Bắt đầu tổng hợp giọng đọc AI '{voice_to_use}'...")
     t_tts_start = time.time()
     tts = Vieneu(mode="v3turbo", backend="onnx", device="cpu")
 
@@ -129,7 +143,7 @@ def main():
             texts = [s["vi"] for s in batch]
             audios = tts.infer_batch(
                 texts,
-                voice="Ngọc Huyền",
+                voice=voice_to_use,
                 batch_size=len(texts),
                 max_new_frames=600,
                 max_chars=350,
