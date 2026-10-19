@@ -319,9 +319,11 @@ def main():
     except Exception:
         bx, by, bw, bh = 410, 15, 305, 55
 
+    blur_r = min(10, max(2, int(bh // 4)))
+
     filter_complex = (
         f"[0:v]split=2[base][wm];"
-        f"[wm]crop={bw}:{bh}:{bx}:{by},boxblur=luma_radius=15:luma_power=2[wmblur];"
+        f"[wm]crop={bw}:{bh}:{bx}:{by},boxblur={blur_r}:2[wmblur];"
         f"[base][wmblur]overlay={bx}:{by}[v_blurred];"
         f"[v_blurred]setpts=PTS/{args.slowdown},fps=30[vout];"
         f"[0:a]aresample=48000,volume={args.orig_vol:.3f}[a_orig];"

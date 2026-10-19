@@ -264,9 +264,10 @@ def main():
     if args.blur_box and args.blur_box.strip() and args.blur_box.strip().lower() != "none":
         try:
             bx, by, bw, bh = [int(x.strip()) for x in args.blur_box.split(",")]
+            blur_r = min(10, max(2, int(bh // 4)))
             vfilter = (
                 f"[0:v]split=2[base][wm];"
-                f"[wm]crop={bw}:{bh}:{bx}:{by},boxblur=luma_radius=15:luma_power=2[wmblur];"
+                f"[wm]crop={bw}:{bh}:{bx}:{by},boxblur={blur_r}:2[wmblur];"
                 f"[base][wmblur]overlay={bx}:{by}[v_blurred];"
                 f"[v_blurred]setpts=PTS/{args.slowdown},fps=30[vout];"
             )
