@@ -10,8 +10,11 @@ Runs on GitHub Actions runner (Ubuntu) to perform:
 Stealth Mode: Che bớt tiến trình, không in kịch bản/nội dung thoại ra màn hình console.
 """
 
-import sys
 import os
+os.environ["HF_HUB_DISABLE_SYMLINKS"] = "1"
+os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "0"
+import sys
+import shutil
 import json
 import time
 import argparse
@@ -20,6 +23,21 @@ from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import numpy as np
 import soundfile as sf
+
+
+def fix_hf_symlinks():
+    cache_root = Path.home() / ".cache" / "huggingface"
+    if not cache_root.exists():
+        return
+    for item in cache_root.rglob("*"):
+        if item.is_symlink():
+            try:
+                target = item.resolve()
+                if target.exists() and target.is_file():
+                    item.unlink()
+                    shutil.copy2(target, item)
+            except Exception:
+                pass
 
 try:
     from vieneu import Vieneu
@@ -126,6 +144,22 @@ def main():
 
     print(f"\n[TTS] Bắt đầu tổng hợp giọng đọc AI '{voice_to_use}'...")
     t_tts_start = time.time()
+    try:
+        from huggingface_hub import hf_hub_download
+        for fn in ['vieneu_prefill.onnx', 'vieneu_decode_step.onnx', 'vieneu_acoustic_cached.onnx', 'vieneu_backbone_shared.data', 'vieneu_v3_heads.npz', 'config.json', 'tokenizer.json']:
+            try:
+                hf_hub_download("pnnbao-ump/VieNeu-TTS-v3-Turbo", fn, subfolder="onnx_update")
+            except Exception:
+                pass
+        for fn in ['moss_audio_tokenizer_decode_full.onnx', 'moss_audio_tokenizer_decode_shared.data', 'moss_audio_tokenizer_decode_step.onnx', 'codec_browser_onnx_meta.json']:
+            try:
+                hf_hub_download("OpenMOSS-Team/MOSS-Audio-Tokenizer-Nano-ONNX", fn)
+            except Exception:
+                pass
+        fix_hf_symlinks()
+    except Exception as e:
+        print(f"[Warning] Model pre-fetch warning: {e}")
+
     tts = Vieneu(mode="v3turbo", backend="onnx", device="cpu")
 
     missing = []

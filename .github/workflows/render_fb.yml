@@ -99,6 +99,8 @@ jobs:
       - name: Xử lý Lồng tiếng & Render (Máy ảo 1 - Demo FB)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HF_HUB_DISABLE_SYMLINKS: "1"
+          HF_HUB_ENABLE_HF_TRANSFER: "0"
         run: |
           python worker_fb.py \
             --job-id "${{ inputs.job_id }}" \
