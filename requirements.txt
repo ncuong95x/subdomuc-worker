@@ -1,0 +1,8 @@
+vieneu==3.6.4
+onnxruntime==1.29.0
+huggingface_hub>=0.20.0
+numpy
+soundfile
+pillow
+yt-dlp
+requests
