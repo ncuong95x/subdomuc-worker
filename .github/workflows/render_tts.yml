@@ -63,12 +63,16 @@ jobs:
         env:
           HF_HUB_DISABLE_SYMLINKS: "1"
           HF_HUB_ENABLE_HF_TRANSFER: "0"
+          JOB_ID: ${{ inputs.job_id }}
+          TEXT_B64: ${{ inputs.text_b64 }}
+          VOICE: ${{ inputs.voice }}
+          EMOTION: ${{ inputs.emotion }}
         run: |
           python worker_tts.py \
-            --job-id "${{ inputs.job_id }}" \
-            --text-b64 "${{ inputs.text_b64 }}" \
-            --voice "${{ inputs.voice }}" \
-            --emotion "${{ inputs.emotion }}"
+            --job-id "$JOB_ID" \
+            --text-b64 "$TEXT_B64" \
+            --voice "$VOICE" \
+            --emotion "$EMOTION"
 
       - name: Lưu audio kết quả
         uses: actions/upload-artifact@v4
