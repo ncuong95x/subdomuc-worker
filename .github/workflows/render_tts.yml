@@ -1,0 +1,79 @@
+name: "VieNeu TTS"
+
+run-name: "TTS ${{ inputs.job_id }}"
+
+on:
+  workflow_dispatch:
+    inputs:
+      job_id:
+        description: "Unique TTS job ID"
+        required: true
+        type: string
+      text_b64:
+        description: "Base64url encoded Vietnamese text"
+        required: true
+        type: string
+      voice:
+        description: "VieNeu preset voice"
+        required: true
+        default: "Minh Quân"
+        type: string
+      emotion:
+        description: "Optional emotion tag"
+        required: false
+        default: ""
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  tts:
+    name: "TTS (${{ inputs.job_id }})"
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+
+    steps:
+      - name: Che thông tin job
+        run: echo "::add-mask::${{ inputs.job_id }}"
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Cấu hình Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Cache mô hình VieNeu
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: huggingface-vieneu-v3turbo-${{ runner.os }}
+
+      - name: Cài môi trường
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg aria2
+          python -m pip install --upgrade pip -q
+          pip install -r requirements.txt -q
+
+      - name: Tạo giọng trên runner
+        env:
+          HF_HUB_DISABLE_SYMLINKS: "1"
+          HF_HUB_ENABLE_HF_TRANSFER: "0"
+        run: |
+          python worker_tts.py \
+            --job-id "${{ inputs.job_id }}" \
+            --text-b64 "${{ inputs.text_b64 }}" \
+            --voice "${{ inputs.voice }}" \
+            --emotion "${{ inputs.emotion }}"
+
+      - name: Lưu audio kết quả
+        uses: actions/upload-artifact@v4
+        with:
+          name: tts-result-${{ inputs.job_id }}
+          path: workspace/output/*
+          retention-days: 1
+          if-no-files-found: error
